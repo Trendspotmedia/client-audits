@@ -1,0 +1,234 @@
+{
+  "name": "Lead Magnet SEO Audit",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "seo-audit",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "seo-audit"
+    },
+    {
+      "parameters": {
+        "url": "https://api.perplexity.ai/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "perplexityApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "llama-3.1-sonar-large-128k-online"
+            },
+            {
+              "name": "messages",
+              "value": "={{ [{\"role\":\"system\",\"content\":\"You are an SEO expert analyzing websites.\"},{\"role\":\"user\",\"content\":\"Analyze the SEO of \" + $json.body.url + \". Provide keyword opportunities, content gaps, and competitor insights.\"}] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "perplexity-analysis",
+      "name": "Perplexity AI Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [470, 200]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url={{ encodeURIComponent($json.body.url) }}&category=PERFORMANCE&category=SEO&category=ACCESSIBILITY&category=BEST_PRACTICES&strategy=mobile",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {}
+      },
+      "id": "pagespeed-mobile",
+      "name": "PageSpeed Mobile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [470, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "claudeApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "claude-3-5-sonnet-20241022"
+            },
+            {
+              "name": "max_tokens",
+              "value": 4096
+            },
+            {
+              "name": "messages",
+              "value": "={{ [{\"role\":\"user\",\"content\":\"Create a comprehensive SEO audit report for \" + $('Webhook').item.json.body.url + \". Include:\\n\\nPerplexity Insights:\\n\" + JSON.stringify($('Perplexity AI Analysis').item.json.choices[0].message.content) + \"\\n\\nPageSpeed Scores (Mobile):\\nPerformance: \" + $('PageSpeed Mobile').item.json.lighthouseResult.categories.performance.score * 100 + \"/100\\nSEO: \" + $('PageSpeed Mobile').item.json.lighthouseResult.categories.seo.score * 100 + \"/100\\nAccessibility: \" + $('PageSpeed Mobile').item.json.lighthouseResult.categories.accessibility.score * 100 + \"/100\\nBest Practices: \" + $('PageSpeed Mobile').item.json.lighthouseResult.categories['best-practices'].score * 100 + \"/100\\n\\nFormat this as a professional HTML email with actionable recommendations.\"}] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "claude-report-generation",
+      "name": "Claude Report Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.resend.com/emails",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "resendApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "from",
+              "value": "SEO Audit <audit@trendspotmedia.com>"
+            },
+            {
+              "name": "to",
+              "value": "={{ $('Webhook').item.json.body.email }}"
+            },
+            {
+              "name": "subject",
+              "value": "=Your Free SEO Audit Results - {{ $('Webhook').item.json.body.url }}"
+            },
+            {
+              "name": "html",
+              "value": "={{ $json.content[0].text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Email via Resend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"Your SEO audit has been sent to \" + $('Webhook').item.json.body.email } }}",
+        "options": {}
+      },
+      "id": "webhook-response",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1130, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Perplexity AI Analysis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "PageSpeed Mobile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perplexity AI Analysis": {
+      "main": [
+        [
+          {
+            "node": "Claude Report Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PageSpeed Mobile": {
+      "main": [
+        [
+          {
+            "node": "Claude Report Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Report Generation": {
+      "main": [
+        [
+          {
+            "node": "Send Email via Resend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email via Resend": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-12-24T15:00:00.000Z",
+  "versionId": "1"
+}
