@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SEO Audit Dashboard</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+    .kpi { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .kpi div { padding: 10px; border-radius: 10px; background: #f7f7f7; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px; border-bottom: 1px solid #eee; text-align: left; }
+    small { color: #666; }
+  </style>
+</head>
+<body>
+  <h1>SEO Audit</h1>
+  <div id="meta" class="card"></div>
+  <div id="kpis" class="card"></div>
+  <div id="pages" class="card"></div>
+  <div id="queries" class="card"></div>
+  <div id="psi" class="card"></div>
+
+<script>
+async function run() {
+  const res = await fetch('./report.json', { cache: 'no-store' });
+  const data = await res.json();
+
+  document.getElementById('meta').innerHTML = `
+    <b>${data.siteUrl || ''}</b><br/>
+    <small>Generated: ${data.generatedAt || ''}</small><br/>
+    <small>Date range: ${data?.dateRange?.start || ''} → ${data?.dateRange?.end || ''} (${data?.dateRange?.days || ''} days)</small>
+  `;
+
+  const t = data?.gsc?.totals || {};
+  document.getElementById('kpis').innerHTML = `
+    <h3>GSC Totals</h3>
+    <div class="kpi">
+      <div><b>Clicks</b><br/>${t.clicks ?? 0}</div>
+      <div><b>Impressions</b><br/>${t.impressions ?? 0}</div>
+      <div><b>CTR</b><br/>${(t.ctr ?? 0).toFixed(4)}</div>
+      <div><b>Avg Pos</b><br/>${(t.position ?? 0).toFixed(2)}</div>
+    </div>
+  `;
+
+  const pages = (data?.gsc?.topPages || []).slice(0, 10);
+  document.getElementById('pages').innerHTML = `
+    <h3>Top Pages</h3>
+    <table><thead><tr>
+      <th>Page</th><th>Clicks</th><th>Impr</th><th>CTR</th><th>Pos</th>
+    </tr></thead><tbody>
+    ${pages.map(p => `<tr>
+      <td><a href="${p.page}" target="_blank" rel="noreferrer">${p.page}</a></td>
+      <td>${p.clicks}</td><td>${p.impressions}</td><td>${(p.ctr||0).toFixed(4)}</td><td>${(p.position||0).toFixed(2)}</td>
+    </tr>`).join('')}
+    </tbody></table>
+  `;
+
+  const queries = (data?.gsc?.topQueries || []).slice(0, 10);
+  document.getElementById('queries').innerHTML = `
+    <h3>Top Queries</h3>
+    <table><thead><tr>
+      <th>Query</th><th>Clicks</th><th>Impr</th><th>CTR</th><th>Pos</th>
+    </tr></thead><tbody>
+    ${queries.map(q => `<tr>
+      <td>${q.query}</td>
+      <td>${q.clicks}</td><td>${q.impressions}</td><td>${(q.ctr||0).toFixed(4)}</td><td>${(q.position||0).toFixed(2)}</td>
+    </tr>`).join('')}
+    </tbody></table>
+  `;
+
+  const psi = data?.pagespeed || {};
+  document.getElementById('psi').innerHTML = `
+    <h3>PageSpeed</h3>
+    <div class="kpi">
+      <div><b>Mobile Perf</b><br/>${psi?.mobile?.performance ?? '—'}</div>
+      <div><b>Desktop Perf</b><br/>${psi?.desktop?.performance ?? '—'}</div>
+      <div><b>Mobile SEO</b><br/>${psi?.mobile?.seo ?? '—'}</div>
+      <div><b>Desktop SEO</b><br/>${psi?.desktop?.seo ?? '—'}</div>
+    </div>
+    <small>URL tested: ${data.pageUrl || ''}</small>
+  `;
+}
+run();
+</script>
+</body>
+</html>
